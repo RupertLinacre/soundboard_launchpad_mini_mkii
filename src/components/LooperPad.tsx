@@ -32,7 +32,7 @@ export function LooperPad() {
 
   const handleVolumeChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const volume = parseInt(event.target.value, 10);
-    console.log('Slider volume changed to:', volume);
+    setLooperVolume(volume);
     AudioEngine.setLooperVolume(volume);
   };
 
