@@ -44,14 +44,8 @@ export const AudioEngine = {
     // Tone.Volume expects values in dB. Convert 0-100 to a suitable dB range.
     // A common mapping is 0-100 to -60dB (silent) to 0dB (unity gain).
     // Or, for more control, 0-100 to -40dB to 0dB. Let's use -40 to 0.
-    const db = Tone.Midi.mtof(volume).toFrequency(); // This is a hack, Tone.Midi.mtof converts MIDI note to frequency, which is not what we want.
-    // Let's use a linear scale for now, and map it to a reasonable dB range.
-    // A simple linear mapping from 0-100 to -40dB to 0dB:
-    // db = (volume / 100) * 40 - 40;
-    // Or, for a more logarithmic feel (closer to how human hearing perceives volume):
-    // db = 20 * Math.log10(volume / 100); // This would make 0 volume -Infinity, which is fine.
-    // Let's use a simpler linear mapping for now, from 0-100 to -60dB to 0dB.
-    const dbVolume = volume === 0 ? -Infinity : (volume / 100) * 60 - 60;
+    
+    const dbVolume = volume === 0 ? -Infinity : 20 * Math.log10(volume / 100);
     this.looperVolumeNode.volume.value = dbVolume;
     useSoundStore.getState().setLooperVolume(volume);
     console.log('Looper volume set to:', volume, 'dB:', dbVolume);
