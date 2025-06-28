@@ -4,6 +4,7 @@ import { PadGrid } from './components/PadGrid';
 import { useSoundStore } from './useSoundStore';
 import { AudioEngine } from './AudioEngine';
 import { MidiHandler } from './MidiHandler';
+import * as Tone from 'tone';
 
 const KEY_MAP: { [key: string]: number } = {
   '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
@@ -14,6 +15,25 @@ const KEY_MAP: { [key: string]: number } = {
 
 function App() {
   const sounds = useSoundStore((state) => state.sounds);
+
+  useEffect(() => {
+    const startAudioContext = async () => {
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+        console.log('Tone.js AudioContext started from user gesture.');
+      }
+      window.removeEventListener('mousedown', startAudioContext);
+      window.removeEventListener('keydown', startAudioContext);
+    };
+
+    window.addEventListener('mousedown', startAudioContext);
+    window.addEventListener('keydown', startAudioContext);
+
+    return () => {
+      window.removeEventListener('mousedown', startAudioContext);
+      window.removeEventListener('keydown', startAudioContext);
+    };
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {

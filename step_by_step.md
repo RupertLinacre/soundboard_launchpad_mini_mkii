@@ -82,13 +82,13 @@ This plan breaks down the development of the soundboard web app into small, veri
     *   ~~Drop a few audio files.~~
     *   ~~Pressing pads on your MIDI controller should trigger the corresponding sounds in the web app.~~
 
-## Step 7: Final Polish & Styling
+## ~~Step 7: Final Polish & Styling~~
 
-*   **Goal:** Improve the visual design and user feedback.
+*   **Goal:** ~~Improve the visual design and user feedback.~~
 *   **Actions:**
-    1.  Use Tailwind CSS to create a clean, modern design for the pads, the drop zone, and the overall layout.
-    2.  Add visual feedback for interactions:
-        *   Highlight the drop zone when a file is being dragged over it.
-        *   Make pads light up or change appearance when they are triggered by click, keyboard, or MIDI.
+    1.  ~~Use Tailwind CSS to create a clean, modern design for the pads, the drop zone, and the overall layout.~~
+    2.  ~~Add visual feedback for interactions:
+        *   ~~Highlight the drop zone when a file is being dragged over it.~~
+        *   ~~Make pads light up or change appearance when they are triggered by click, keyboard, or MIDI.~~
 *   **Verification:**
-    *   The app should be visually appealing and feel responsive. Interactions should provide clear feedback to the user.
+    *   ~~The app should be visually appealing and feel responsive. Interactions should provide clear feedback to the user.~~

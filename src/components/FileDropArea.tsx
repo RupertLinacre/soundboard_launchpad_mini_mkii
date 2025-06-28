@@ -17,7 +17,7 @@ export function FileDropArea() {
         const player = await AudioEngine.decodeAudioFile(file);
         const id = file.name; // Using file name as ID for simplicity
         AudioEngine.addPlayer(id, player);
-        addSound({ id, name: file.name, player });
+        addSound({ id, name: file.name, player, isPlaying: false });
       } catch (error) {
         console.error('Error decoding audio file:', file.name, error);
       }
@@ -29,8 +29,8 @@ export function FileDropArea() {
   return (
     <div
       {...getRootProps()}
-      className={`bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg p-16 text-center cursor-pointer transition-colors ${
-        isDragActive ? 'border-blue-500 bg-gray-700' : ''
+      className={`bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
+        isDragActive ? 'border-green-500 bg-green-900/20 ring-4 ring-green-500' : ''
       }`}
     >
       <input {...getInputProps()} />

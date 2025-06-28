@@ -1,0 +1,1015 @@
+./GEMINI.md
+---
+Soundboard Web App – Project Context (gemini.md)
+
+Purpose
+
+Create a zero-BS web soundboard: users drag WAV/MP3 files into the page, a grid of pads appears (one per file), each pad plays its sound on click or when the matching pad on a connected MIDI controller (e.g., Ableton Push/Launchpad) is pressed.  Pads are numbered (and then lettered qwertyuiop) and pressing the corresponding number or letter triggers the pad.
+
+Core Requirements
+	•	Drag-and-drop import of local audio files (WAV, MP3).
+	•	Instant pad grid auto-sized to the number of samples.
+	•	Low-latency playback (no audible glitch on first hit).
+	•	Automatic MIDI mapping: first 128 pads map to MIDI notes 0-127; respond to noteon events.
+	•	No back-end; everything runs client-side; optional PWA caching.
+
+Target Architecture
+
+Layer	Technology	Responsibility
+UI / View	React 18 + Tailwind	Render grid, file drop zone, basic controls
+State	Zustand	Hold array of sounds {id, name, buffer} and expose play(idx)
+Audio	Tone.js on top of Web Audio API	Decode, cache and trigger AudioBuffers; master limiter
+MIDI	Web MIDI API via webmidi.js	Enumerate devices, listen to noteon, call play(idx)
+Dev / Build	Vite (React TS template)	Fast HMR, zero config
+Optional	Workbox	Cache decoded buffers for offline use (PWA)
+
+Component Diagram
+
++----------------+       drag files        +---------------------+
+| FileDropArea   | ----------------------> | AudioEngine (Tone)  |
+| (react-dropzone)|                        |  decode & cache     |
++----------------+                         +----------+----------+
+        |                                           |
+        | addSounds([])                             | play(idx)
+        v                                           |
+  +--------------+      Zustand store      +--------v--------+
+  | PadGrid      | <---------------------- | MidiHandler     |
+  | (React grid) |                         | (webmidi.js)    |
+  +--------------+                         +-----------------+
+
+Data Flow
+	1.	User drops n files → FileDropArea validates & passes File[].
+	2.	AudioEngine decodes each file to an AudioBuffer, returns metadata.
+	3.	Store pushes {id, name, buffer}; UI re-renders n pads.
+	4.	User interaction
+	•	Click pad → play(idx)
+	•	MIDI noteon → play(idx) (note number = idx)
+	5.	AudioEngine starts the corresponding AudioBuffer through a limiter to speakers.
+
+Constraints & Assumptions
+	•	Browser must support Web Audio (all evergreen) and Web MIDI (Chrome/Edge; Safari behind flag).
+	•	Memory cap: soft-limit total sample size to ~30 MB.
+	•	First version hard-wires pad size grid (4×4/8×8); later dynamic CSS grid.
+
+Stretch Goals (not in v1 scope)
+	•	Pad colour assignment and MIDI LED feedback (RGB Sysex).
+	•	Preset save/load (JSON + IndexedDB for blobs).
+	•	Waveform thumbnail and progress ring on pad.
+
+⸻
+
+
+---
+./README.md
+---
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      ...tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      ...tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      ...tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+
+---
+./eslint.config.js
+---
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { globalIgnores } from 'eslint/config'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs['recommended-latest'],
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+  },
+])
+
+
+---
+./index.html
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+---
+./package.json
+---
+{
+  "name": "quick_soundboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-dropzone": "^14.3.8",
+    "tone": "^15.1.22",
+    "webmidi": "^3.1.12",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^7.0.0"
+  }
+}
+
+
+---
+./postcss.config.js
+---
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+    autoprefixer: {},
+  },
+}
+
+---
+./prompt.txt
+---
+./GEMINI.md
+---
+Soundboard Web App – Project Context (gemini.md)
+
+Purpose
+
+Create a zero-BS web soundboard: users drag WAV/MP3 files into the page, a grid of pads appears (one per file), each pad plays its sound on click or when the matching pad on a connected MIDI controller (e.g., Ableton Push/Launchpad) is pressed.  Pads are numbered (and then lettered qwertyuiop) and pressing the corresponding number or letter triggers the pad.
+
+Core Requirements
+	•	Drag-and-drop import of local audio files (WAV, MP3).
+	•	Instant pad grid auto-sized to the number of samples.
+	•	Low-latency playback (no audible glitch on first hit).
+	•	Automatic MIDI mapping: first 128 pads map to MIDI notes 0-127; respond to noteon events.
+	•	No back-end; everything runs client-side; optional PWA caching.
+
+Target Architecture
+
+Layer	Technology	Responsibility
+UI / View	React 18 + Tailwind	Render grid, file drop zone, basic controls
+State	Zustand	Hold array of sounds {id, name, buffer} and expose play(idx)
+Audio	Tone.js on top of Web Audio API	Decode, cache and trigger AudioBuffers; master limiter
+MIDI	Web MIDI API via webmidi.js	Enumerate devices, listen to noteon, call play(idx)
+Dev / Build	Vite (React TS template)	Fast HMR, zero config
+Optional	Workbox	Cache decoded buffers for offline use (PWA)
+
+Component Diagram
+
++----------------+       drag files        +---------------------+
+| FileDropArea   | ----------------------> | AudioEngine (Tone)  |
+| (react-dropzone)|                        |  decode & cache     |
++----------------+                         +----------+----------+
+        |                                           |
+        | addSounds([])                             | play(idx)
+        v                                           |
+  +--------------+      Zustand store      +--------v--------+
+  | PadGrid      | <---------------------- | MidiHandler     |
+  | (React grid) |                         | (webmidi.js)    |
+  +--------------+                         +-----------------+
+
+Data Flow
+	1.	User drops n files → FileDropArea validates & passes File[].
+	2.	AudioEngine decodes each file to an AudioBuffer, returns metadata.
+	3.	Store pushes {id, name, buffer}; UI re-renders n pads.
+	4.	User interaction
+	•	Click pad → play(idx)
+	•	MIDI noteon → play(idx) (note number = idx)
+	5.	AudioEngine starts the corresponding AudioBuffer through a limiter to speakers.
+
+Constraints & Assumptions
+	•	Browser must support Web Audio (all evergreen) and Web MIDI (Chrome/Edge; Safari behind flag).
+	•	Memory cap: soft-limit total sample size to ~30 MB.
+	•	First version hard-wires pad size grid (4×4/8×8); later dynamic CSS grid.
+
+Stretch Goals (not in v1 scope)
+	•	Pad colour assignment and MIDI LED feedback (RGB Sysex).
+	•	Preset save/load (JSON + IndexedDB for blobs).
+	•	Waveform thumbnail and progress ring on pad.
+
+⸻
+
+
+---
+./README.md
+---
+# React + TypeScript + Vite
+
+This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+
+Currently, two official plugins are available:
+
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+
+## Expanding the ESLint configuration
+
+If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+
+```js
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+
+      // Remove tseslint.configs.recommended and replace with this
+      ...tseslint.configs.recommendedTypeChecked,
+      // Alternatively, use this for stricter rules
+      ...tseslint.configs.strictTypeChecked,
+      // Optionally, add this for stylistic rules
+      ...tseslint.configs.stylisticTypeChecked,
+
+      // Other configs...
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+
+```js
+// eslint.config.js
+import reactX from 'eslint-plugin-react-x'
+import reactDom from 'eslint-plugin-react-dom'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      // Other configs...
+      // Enable lint rules for React
+      reactX.configs['recommended-typescript'],
+      // Enable lint rules for React DOM
+      reactDom.configs.recommended,
+    ],
+    languageOptions: {
+      parserOptions: {
+        project: ['./tsconfig.node.json', './tsconfig.app.json'],
+        tsconfigRootDir: import.meta.dirname,
+      },
+      // other options...
+    },
+  },
+])
+```
+
+
+---
+./eslint.config.js
+---
+import js from '@eslint/js'
+import globals from 'globals'
+import reactHooks from 'eslint-plugin-react-hooks'
+import reactRefresh from 'eslint-plugin-react-refresh'
+import tseslint from 'typescript-eslint'
+import { globalIgnores } from 'eslint/config'
+
+export default tseslint.config([
+  globalIgnores(['dist']),
+  {
+    files: ['**/*.{ts,tsx}'],
+    extends: [
+      js.configs.recommended,
+      tseslint.configs.recommended,
+      reactHooks.configs['recommended-latest'],
+      reactRefresh.configs.vite,
+    ],
+    languageOptions: {
+      ecmaVersion: 2020,
+      globals: globals.browser,
+    },
+  },
+])
+
+
+---
+./index.html
+---
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + React + TS</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
+
+---
+./package.json
+---
+{
+  "name": "quick_soundboard",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-dropzone": "^14.3.8",
+    "tone": "^15.1.22",
+    "webmidi": "^3.1.12",
+    "zustand": "^5.0.6"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.29.0",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@tailwindcss/vite": "^4.1.11",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.5.2",
+    "autoprefixer": "^10.4.21",
+    "eslint": "^9.29.0",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.20",
+    "globals": "^16.2.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^4.1.11",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.34.1",
+    "vite": "^7.0.0"
+  }
+}
+
+
+---
+./postcss.config.js
+---
+export default {
+  plugins: {
+    '@tailwindcss/postcss': {},
+    autoprefixer: {},
+  },
+}
+
+---
+
+
+---
+./step_by_step.md
+---
+# Soundboard App Implementation Plan
+
+This plan breaks down the development of the soundboard web app into small, verifiable steps. After each step, the application should be runnable in a browser to confirm the functionality has been correctly implemented.
+
+## ~~Step 1: Project Setup & Basic Layout~~
+
+*   **Goal:** ~~Initialize the project with Vite, add Tailwind CSS, and create a basic placeholder layout.~~
+*   **Actions:**
+    1.  ~~Use Vite to scaffold a new React + TypeScript project.~~
+    2.  ~~Install and configure Tailwind CSS for styling.~~
+    3.  ~~In `App.tsx`, create two main sections: one for the file drop zone and one for the sound pad grid. Use simple `div`s with borders and labels for now.~~
+*   **Verification:**
+    *   ~~Run `npm run dev`.~~
+    *   ~~Open the browser to the provided localhost URL.~~
+    *   ~~The page should display two distinct placeholder boxes for the "Drop Zone" and "Pad Grid", with basic Tailwind styles applied.~~
+
+## ~~Step 2: File Drop & State Mgt Setup~~
+
+*   **Goal:** ~~Implement the file drop functionality and set up a state management store to hold the dropped files.~~
+*   **Actions:**
+    1.  ~~Install `zustand` and `react-dropzone`.~~
+    2.  ~~Create a Zustand store (`useSoundStore.ts`) that holds an array of `File` objects.~~
+    3.  ~~Implement the `FileDropArea` component using `react-dropzone`.~~
+    4.  ~~On dropping files, validate they are `audio/wav` or `audio/mpeg`, and then add the valid files to the Zustand store.~~
+*   **Verification:**
+    *   ~~Open the app in the browser.~~
+    *   ~~Use React DevTools to inspect the Zustand store's state.~~
+    *   ~~Drag and drop a few MP3 or WAV files onto the drop zone.~~
+    *   ~~Confirm that the store's state updates to show an array of the `File` objects you dropped.~~
+
+## ~~Step 3: Displaying the Sound Pads~~
+
+*   **Goal:** ~~Render a grid of pads based on the files in the store.~~
+*   **Actions:**
+    1.  ~~Create a `PadGrid` component.~~
+    2.  ~~This component will read the array of sounds from the Zustand store.~~
+    3.  ~~It will map over the array and render a simple `<button>` for each file, displaying the file's name as the button text.~~
+    4.  ~~Use CSS Grid with Tailwind to arrange the buttons in a responsive grid.~~
+*   **Verification:**
+    *   ~~Open the app.~~
+    *   ~~Drop several audio files onto the drop zone.~~
+    *   ~~The "Pad Grid" area should now display one button for each file, with the correct file name, arranged in a grid.~~
+
+## ~~Step 4: Audio Playback on Click~~
+
+*   **Goal:** ~~Decode dropped audio files and play them when a pad is clicked.~~
+*   **Actions:**
+    1.  ~~Install `tone`.~~
+    2.  ~~Create an `AudioEngine.ts` service that uses `Tone.js`.~~
+    3.  ~~Modify the Zustand store. Instead of just `File`, it should store an object like `{ id, name, player: Tone.Player }`.~~
+    4.  ~~When files are dropped, use the `AudioEngine` to decode each file into a `Tone.Player` instance and add the resulting objects to the store.~~
+    5.  ~~In the `PadGrid` component, add an `onClick` handler to each button that calls the `start()` method of its corresponding `Tone.Player`.~~
+*   **Verification:**
+    *   ~~Open the app and drop a WAV or MP3 file.~~
+    *   ~~A pad appears in the grid.~~
+    *   ~~Clicking the pad should immediately play the audio file.~~
+
+## ~~Step 5: Keyboard Controls~~
+
+*   **Goal:** ~~Trigger sound pads using keyboard keys.~~
+*   **Actions:**
+    1.  ~~Define a mapping of keyboard keys to pad indices (e.g., `1` -> 0, `2` -> 1, ..., `q` -> 9, `w` -> 10).~~
+    2.  ~~Add a global `keydown` event listener in the main `App.tsx` component.~~
+    3.  ~~When a mapped key is pressed, find the corresponding sound in the Zustand store by its index and trigger its `Tone.Player` to play.~~
+*   **Verification:**
+    *   ~~Open the app and drop at least two audio files.~~
+    *   ~~Pressing the '1' key should play the first sound.~~
+    *   ~~Pressing the '2' key should play the second sound.~~
+
+## ~~Step 6: MIDI Input & Playback~~
+
+*   **Goal:** ~~Connect a MIDI controller to trigger the sound pads.~~
+*   **Actions:**
+    1.  ~~Install `webmidi`.~~
+    2.  ~~Create a `MidiHandler.ts` service.~~
+    3.  ~~On app load, the `MidiHandler` should request MIDI access and listen for `noteon` events on all available inputs.~~
+    4.  ~~When a `noteon` event is received, map the MIDI note number to a pad index (e.g., MIDI note 36 -> pad 0, 37 -> pad 1).~~
+    5.  ~~Trigger the corresponding `Tone.Player` from the Zustand store.~~
+*   **Verification:**
+    *   ~~Connect a MIDI controller to your computer.~~
+    *   ~~Open the app. The browser should prompt for MIDI access. Grant it.~~
+    *   ~~Drop a few audio files.~~
+    *   ~~Pressing pads on your MIDI controller should trigger the corresponding sounds in the web app.~~
+
+## ~~Step 7: Final Polish & Styling~~
+
+*   **Goal:** ~~Improve the visual design and user feedback.~~
+*   **Actions:**
+    1.  ~~Use Tailwind CSS to create a clean, modern design for the pads, the drop zone, and the overall layout.~~
+    2.  ~~Add visual feedback for interactions:
+        *   ~~Highlight the drop zone when a file is being dragged over it.~~
+        *   ~~Make pads light up or change appearance when they are triggered by click, keyboard, or MIDI.~~
+*   **Verification:**
+    *   ~~The app should be visually appealing and feel responsive. Interactions should provide clear feedback to the user.~~
+
+
+---
+./tailwind.config.js
+---
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    "./index.html",
+    "./src/**/*.{js,ts,jsx,tsx}",
+  ],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+---
+./tsconfig.app.json
+---
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "jsx": "react-jsx",
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["src"]
+}
+
+
+---
+./tsconfig.json
+---
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}
+
+
+---
+./tsconfig.node.json
+---
+{
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "target": "ES2023",
+    "lib": ["ES2023"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+
+    /* Bundler mode */
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+
+    /* Linting */
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "erasableSyntaxOnly": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true
+  },
+  "include": ["vite.config.ts"]
+}
+
+
+---
+./vite.config.ts
+---
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+
+// https://vite.dev/config/
+export default defineConfig({
+  plugins: [react(), tailwindcss()],
+})
+
+
+---
+./public/vite.svg
+---
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="31.88" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 257"><defs><linearGradient id="IconifyId1813088fe1fbc01fb466" x1="-.828%" x2="57.636%" y1="7.652%" y2="78.411%"><stop offset="0%" stop-color="#41D1FF"></stop><stop offset="100%" stop-color="#BD34FE"></stop></linearGradient><linearGradient id="IconifyId1813088fe1fbc01fb467" x1="43.376%" x2="50.316%" y1="2.242%" y2="89.03%"><stop offset="0%" stop-color="#FFEA83"></stop><stop offset="8.333%" stop-color="#FFDD35"></stop><stop offset="100%" stop-color="#FFA800"></stop></linearGradient></defs><path fill="url(#IconifyId1813088fe1fbc01fb466)" d="M255.153 37.938L134.897 252.976c-2.483 4.44-8.862 4.466-11.382.048L.875 37.958c-2.746-4.814 1.371-10.646 6.827-9.67l120.385 21.517a6.537 6.537 0 0 0 2.322-.004l117.867-21.483c5.438-.991 9.574 4.796 6.877 9.62Z"></path><path fill="url(#IconifyId1813088fe1fbc01fb467)" d="M185.432.063L96.44 17.501a3.268 3.268 0 0 0-2.634 3.014l-5.474 92.456a3.268 3.268 0 0 0 3.997 3.378l24.777-5.718c2.318-.535 4.413 1.507 3.936 3.838l-7.361 36.047c-.495 2.426 1.782 4.5 4.151 3.78l15.304-4.649c2.372-.72 4.652 1.36 4.15 3.788l-11.698 56.621c-.732 3.542 3.979 5.473 5.943 2.437l1.313-2.028l72.516-144.72c1.215-2.423-.88-5.186-3.54-4.672l-25.505 4.922c-2.396.462-4.435-1.77-3.759-4.114l16.646-57.705c.677-2.35-1.37-4.583-3.769-4.113Z"></path></svg>
+
+---
+./src/App.css
+---
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+
+---
+./src/App.tsx
+---
+import { useEffect } from 'react';
+import { FileDropArea } from './components/FileDropArea';
+import { PadGrid } from './components/PadGrid';
+import { useSoundStore } from './useSoundStore';
+import { AudioEngine } from './AudioEngine';
+import { MidiHandler } from './MidiHandler';
+import * as Tone from 'tone';
+
+const KEY_MAP: { [key: string]: number } = {
+  '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
+  'q': 10, 'w': 11, 'e': 12, 'r': 13, 't': 14, 'y': 15, 'u': 16, 'i': 17, 'o': 18, 'p': 19,
+  'a': 20, 's': 21, 'd': 22, 'f': 23, 'g': 24, 'h': 25, 'j': 26, 'k': 27, 'l': 28,
+  'z': 29, 'x': 30, 'c': 31, 'v': 32, 'b': 33, 'n': 34, 'm': 35,
+};
+
+function App() {
+  const sounds = useSoundStore((state) => state.sounds);
+
+  useEffect(() => {
+    const startAudioContext = async () => {
+      if (Tone.context.state !== 'running') {
+        await Tone.start();
+        console.log('Tone.js AudioContext started from user gesture.');
+      }
+      window.removeEventListener('mousedown', startAudioContext);
+      window.removeEventListener('keydown', startAudioContext);
+    };
+
+    window.addEventListener('mousedown', startAudioContext);
+    window.addEventListener('keydown', startAudioContext);
+
+    return () => {
+      window.removeEventListener('mousedown', startAudioContext);
+      window.removeEventListener('keydown', startAudioContext);
+    };
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const keyIndex = KEY_MAP[event.key.toLowerCase()];
+      if (keyIndex !== undefined && sounds[keyIndex]) {
+        AudioEngine.play(sounds[keyIndex].id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sounds]);
+
+  useEffect(() => {
+    MidiHandler.enableMidi();
+  }, []);
+
+  return (
+    <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+      <div className="w-full max-w-4xl flex flex-col gap-4">
+        <FileDropArea />
+        <PadGrid />
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+---
+./src/AudioEngine.ts
+---
+import * as Tone from 'tone';
+import { useSoundStore } from './useSoundStore';
+
+export const AudioEngine = {
+  players: new Map<string, Tone.Player>(),
+
+  async decodeAudioFile(file: File): Promise<Tone.Player> {
+    const url = URL.createObjectURL(file);
+    const player = new Tone.Player(url).toDestination();
+    await player.loaded;
+    URL.revokeObjectURL(url); // Clean up the object URL
+    return player;
+  },
+
+  async play(id: string) {
+    const player = this.players.get(id);
+    if (player) {
+      useSoundStore.getState().setPlaying(id, true);
+      player.start();
+      player.onended = () => {
+        console.log(`Sound ${id} ended. Setting isPlaying to false.`);
+        useSoundStore.getState().setPlaying(id, false);
+      };
+    }
+  },
+
+  addPlayer(id: string, player: Tone.Player) {
+    this.players.set(id, player);
+  },
+};
+
+---
+./src/MidiHandler.ts
+---
+import { WebMidi } from 'webmidi';
+import { useSoundStore } from './useSoundStore';
+import { AudioEngine } from './AudioEngine';
+
+export const MidiHandler = {
+  async enableMidi() {
+    try {
+      await WebMidi.enable();
+      console.log('Web MIDI API enabled!');
+
+      WebMidi.inputs.forEach((input) => {
+        console.log(`Input: ${input.name}`);
+        input.addListener('noteon', (e) => {
+          const noteNumber = e.note.number;
+          console.log(`Received noteon: ${noteNumber}`);
+          const sounds = useSoundStore.getState().sounds;
+          if (sounds[noteNumber]) {
+            AudioEngine.play(sounds[noteNumber].id);
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Web MIDI API could not be enabled:', err);
+    }
+  },
+};
+
+
+---
+./src/index.css
+---
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+---
+./src/main.tsx
+---
+import { StrictMode } from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import App from './App.tsx'
+
+createRoot(document.getElementById('root')!).render(
+  <StrictMode>
+    <App />
+  </StrictMode>,
+)
+
+
+---
+./src/useSoundStore.ts
+---
+import { create } from 'zustand';
+import * as Tone from 'tone';
+
+interface Sound {
+  id: string;
+  name: string;
+  player: Tone.Player;
+  isPlaying: boolean;
+}
+
+interface SoundStore {
+  sounds: Sound[];
+  addSound: (sound: Sound) => void;
+  setPlaying: (id: string, isPlaying: boolean) => void;
+}
+
+export const useSoundStore = create<SoundStore>((set) => ({
+  sounds: [],
+  addSound: (sound) =>
+    set((state) => {
+      const newSounds = [...state.sounds, { ...sound, isPlaying: false }];
+      console.log('Sounds in store:', newSounds);
+      return { sounds: newSounds };
+    }),
+  setPlaying: (id, isPlaying) =>
+    set((state) => ({
+      sounds: state.sounds.map((sound) =>
+        sound.id === id ? { ...sound, isPlaying } : sound
+      ),
+    })),
+}));
+
+
+---
+./src/vite-env.d.ts
+---
+/// <reference types="vite/client" />
+
+
+---
+./src/components/FileDropArea.tsx
+---
+import { useDropzone } from 'react-dropzone';
+import { useSoundStore } from '../useSoundStore';
+import { AudioEngine } from '../AudioEngine';
+
+export function FileDropArea() {
+  const addSound = useSoundStore((state) => state.addSound);
+
+  const onDrop = async (acceptedFiles: File[]) => {
+    console.log('Dropped files:', acceptedFiles);
+    const audioFiles = acceptedFiles.filter(
+      (file) => file.type === 'audio/wav' || file.type === 'audio/mpeg'
+    );
+    console.log('Filtered audio files:', audioFiles);
+
+    for (const file of audioFiles) {
+      try {
+        const player = await AudioEngine.decodeAudioFile(file);
+        const id = file.name; // Using file name as ID for simplicity
+        AudioEngine.addPlayer(id, player);
+        addSound({ id, name: file.name, player });
+      } catch (error) {
+        console.error('Error decoding audio file:', file.name, error);
+      }
+    }
+  };
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({ onDrop });
+
+  return (
+    <div
+      {...getRootProps()}
+      className={`bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
+        isDragActive ? 'border-green-500 bg-green-900/20 ring-4 ring-green-500' : ''
+      }`}
+    >
+      <input {...getInputProps()} />
+      <p className="text-gray-400">
+        {isDragActive
+          ? 'Drop the files here ...'
+          : "Drag 'n' drop some audio files here, or click to select files"}
+      </p>
+    </div>
+  );
+}
+
+---
+./src/components/PadGrid.tsx
+---
+import { useSoundStore } from '../useSoundStore';
+import { AudioEngine } from '../AudioEngine';
+
+export function PadGrid() {
+  const sounds = useSoundStore((state) => state.sounds);
+
+  const handleClick = (id: string) => {
+    AudioEngine.play(id);
+  };
+
+  return (
+    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 grid grid-cols-4 gap-4">
+      {sounds.length === 0 ? (
+        <p className="text-gray-400 col-span-4 text-center">No pads yet. Drop some audio files!</p>
+      ) : (
+        sounds.map((sound, index) => (
+          <button
+            key={sound.id}
+            onClick={() => handleClick(sound.id)}
+            className={`bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md transition-all duration-100 ease-in-out ${sound.isPlaying ? 'ring-4 ring-blue-500 scale-105' : ''}`}
+          >
+            {sound.name}
+          </button>
+        ))
+      )}
+    </div>
+  );
+}
+
+
+---
+./src/assets/react.svg
+---
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+
+---

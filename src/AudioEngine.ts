@@ -1,4 +1,5 @@
 import * as Tone from 'tone';
+import { useSoundStore } from './useSoundStore';
 
 export const AudioEngine = {
   players: new Map<string, Tone.Player>(),
@@ -11,9 +12,24 @@ export const AudioEngine = {
     return player;
   },
 
-  play(id: string) {
+  async play(id: string) {
     const player = this.players.get(id);
     if (player) {
+      // Set the UI state to "playing"
+      useSoundStore.getState().setPlaying(id, true);
+
+      // If the sound is already playing, stop it first for a clean re-trigger.
+      if (player.state === 'started') {
+        player.stop();
+      }
+
+      // **Crucially, assign the onended callback BEFORE starting.**
+      // This will be called only when the sound finishes playing naturally.
+      player.onstop = () => {
+        useSoundStore.getState().setPlaying(id, false);
+      };
+
+      // Start playback.
       player.start();
     }
   },

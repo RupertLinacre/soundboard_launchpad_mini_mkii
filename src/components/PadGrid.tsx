@@ -13,11 +13,11 @@ export function PadGrid() {
       {sounds.length === 0 ? (
         <p className="text-gray-400 col-span-4 text-center">No pads yet. Drop some audio files!</p>
       ) : (
-        sounds.map((sound, index) => (
+        sounds.map((sound) => (
           <button
             key={sound.id}
             onClick={() => handleClick(sound.id)}
-            className="bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md transition-colors"
+            className={`bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md transition-all duration-100 ease-in-out ${sound.isPlaying ? 'ring-4 ring-blue-500 scale-105' : ''}`}
           >
             {sound.name}
           </button>
