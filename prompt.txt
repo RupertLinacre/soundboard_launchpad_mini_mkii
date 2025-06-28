@@ -59,6 +59,72 @@ Stretch Goals (not in v1 scope)
 ⸻
 
 
+
+***
+
+### LLM Context: Interacting with the Novation Launchpad Mini MK2
+
+This document outlines the precise, validated methods for controlling a Novation Launchpad Mini MK2 within a web application, based on the final working code. The key discovery is that this device **does not use SysEx for basic LED control** but instead relies on standard **MIDI Note On messages** where the velocity byte determines the color.
+
+#### 1. Device Connection & Identification
+
+To establish a connection, the application must find the correct MIDI output port. A robust method is to search for a device whose name includes "Launchpad", as implemented in `MidiFeedback.ts`.
+
+*   **Method:** Use `WebMidi.js` to enable MIDI access.
+*   **Code:** `this.output = WebMidi.outputs.find(o => /Launchpad/i.test(o.name));`
+
+This approach is flexible and accommodates minor variations in the device's reported name (e.g., "Launchpad Mini").
+
+#### 2. LED Control Protocol
+
+The core of LED control is sending a standard 3-byte **Note On** message on MIDI channel 1.
+
+*   **Format:** `[Status, Note Number, Velocity]`
+*   **Example Message:** `[0x90, 0, 15]`
+    *   **Status (`0x90`):** This byte represents a "Note On" event on MIDI channel 1. It is a fixed value for this purpose.
+    *   **Note Number (`0`):** This byte identifies the target pad on the device. The correct note number must be derived from the mapping logic (see Section 4).
+    *   **Velocity (`15`):** This byte determines the pad's color and brightness. It does **not** represent the velocity of a key press in this context.
+
+#### 3. Color System (Velocity-Based)
+
+The Launchpad Mini MK2 has a limited, non-RGB color palette. Colors are selected by providing a specific velocity value. The working implementation (`MidiFeedback.ts`) defines these as constants for clarity:
+
+| Constant        | Color   | Velocity (Hex) | Velocity (Decimal) |
+| :-------------- | :------ | :------------- | :----------------- |
+| `LED_COLORS.OFF`  | Off     | `0x0C`         | 12                 |
+| `LED_COLORS.RED`  | Red     | `0x0F`         | 15                 |
+| `LED_COLORS.GREEN`| Green   | `0x3C`         | 60                 |
+| `LED_COLORS.AMBER`| Amber   | `0x3F`         | 63                 |
+
+#### 4. MIDI Note Mapping (The Ground Truth)
+
+The most critical part of the implementation is the bidirectional mapping between the application's internal state (a flat array `index` from 0-63) and the device's physical note layout. This logic is correctly isolated in the `src/MidiMapping.ts` module.
+
+**A. Output: From App Index to Pad Note (`mapIndexToNote`)**
+
+To light up a pad corresponding to a sound at a given `index`, the application must calculate the correct `noteNumber` to send.
+
+*   **Formula:** `noteNumber = (Math.floor(index / 8) * 16) + (index % 8)`
+*   **Example:**
+    *   Sound at `index 0` (top-left) maps to `note 0`.
+    *   Sound at `index 8` (second row, first pad) maps to `note 16`.
+
+**B. Input: From Pad Note to App Index (`mapNoteToIndex`)**
+
+When a user presses a pad, the device sends a `Note On` message. The application must convert the `noteNumber` back to the corresponding sound `index`.
+
+*   **Formula:** `index = (Math.floor(noteNumber / 16) * 8) + (noteNumber % 16)`
+*   **Validation is Essential:** This function must filter out notes from the round control buttons on the sides, top, and bottom. The validation logic in `mapNoteToIndex` correctly achieves this by checking if the calculated column (`noteNumber % 16`) is greater than 7 or if the row is outside the 0-7 range. This ensures only presses on the 8x8 grid are processed.
+
+#### 5. Recommended Implementation Architecture
+
+The working code uses a clean, decoupled architecture that should be maintained:
+
+1.  **`MidiMapping.ts`:** A dedicated, stateless module containing the pure `mapIndexToNote` and `mapNoteToIndex` functions. This is the central "translator".
+2.  **`MidiHandler.ts`:** The input service. It listens for `noteon` events from the device, uses `mapNoteToIndex` to find the correct sound index, and triggers the `AudioEngine`.
+3.  **`MidiFeedback.ts`:** The output service. It provides methods like `setPadColour` to send lighting commands to the device.
+4.  **`MidiFeedbackController.tsx`:** A non-visual React component that acts as the reactive bridge. It subscribes to the `useSoundStore` and, whenever the state of sounds (e.g., `isPlaying`) changes, it uses `MidiFeedback.ts` and `mapIndexToNote` to update the device's LEDs accordingly. This effectively synchronizes the hardware with the application state.
+
 ---
 ./README.md
 ---
@@ -221,16 +287,6 @@ export default tseslint.config([
   }
 }
 
-
----
-./postcss.config.js
----
-export default {
-  plugins: {
-    '@tailwindcss/postcss': {},
-    autoprefixer: {},
-  },
-}
 
 ---
 ./prompt.txt
@@ -296,6 +352,72 @@ Stretch Goals (not in v1 scope)
 ⸻
 
 
+
+***
+
+### LLM Context: Interacting with the Novation Launchpad Mini MK2
+
+This document outlines the precise, validated methods for controlling a Novation Launchpad Mini MK2 within a web application, based on the final working code. The key discovery is that this device **does not use SysEx for basic LED control** but instead relies on standard **MIDI Note On messages** where the velocity byte determines the color.
+
+#### 1. Device Connection & Identification
+
+To establish a connection, the application must find the correct MIDI output port. A robust method is to search for a device whose name includes "Launchpad", as implemented in `MidiFeedback.ts`.
+
+*   **Method:** Use `WebMidi.js` to enable MIDI access.
+*   **Code:** `this.output = WebMidi.outputs.find(o => /Launchpad/i.test(o.name));`
+
+This approach is flexible and accommodates minor variations in the device's reported name (e.g., "Launchpad Mini").
+
+#### 2. LED Control Protocol
+
+The core of LED control is sending a standard 3-byte **Note On** message on MIDI channel 1.
+
+*   **Format:** `[Status, Note Number, Velocity]`
+*   **Example Message:** `[0x90, 0, 15]`
+    *   **Status (`0x90`):** This byte represents a "Note On" event on MIDI channel 1. It is a fixed value for this purpose.
+    *   **Note Number (`0`):** This byte identifies the target pad on the device. The correct note number must be derived from the mapping logic (see Section 4).
+    *   **Velocity (`15`):** This byte determines the pad's color and brightness. It does **not** represent the velocity of a key press in this context.
+
+#### 3. Color System (Velocity-Based)
+
+The Launchpad Mini MK2 has a limited, non-RGB color palette. Colors are selected by providing a specific velocity value. The working implementation (`MidiFeedback.ts`) defines these as constants for clarity:
+
+| Constant        | Color   | Velocity (Hex) | Velocity (Decimal) |
+| :-------------- | :------ | :------------- | :----------------- |
+| `LED_COLORS.OFF`  | Off     | `0x0C`         | 12                 |
+| `LED_COLORS.RED`  | Red     | `0x0F`         | 15                 |
+| `LED_COLORS.GREEN`| Green   | `0x3C`         | 60                 |
+| `LED_COLORS.AMBER`| Amber   | `0x3F`         | 63                 |
+
+#### 4. MIDI Note Mapping (The Ground Truth)
+
+The most critical part of the implementation is the bidirectional mapping between the application's internal state (a flat array `index` from 0-63) and the device's physical note layout. This logic is correctly isolated in the `src/MidiMapping.ts` module.
+
+**A. Output: From App Index to Pad Note (`mapIndexToNote`)**
+
+To light up a pad corresponding to a sound at a given `index`, the application must calculate the correct `noteNumber` to send.
+
+*   **Formula:** `noteNumber = (Math.floor(index / 8) * 16) + (index % 8)`
+*   **Example:**
+    *   Sound at `index 0` (top-left) maps to `note 0`.
+    *   Sound at `index 8` (second row, first pad) maps to `note 16`.
+
+**B. Input: From Pad Note to App Index (`mapNoteToIndex`)**
+
+When a user presses a pad, the device sends a `Note On` message. The application must convert the `noteNumber` back to the corresponding sound `index`.
+
+*   **Formula:** `index = (Math.floor(noteNumber / 16) * 8) + (noteNumber % 16)`
+*   **Validation is Essential:** This function must filter out notes from the round control buttons on the sides, top, and bottom. The validation logic in `mapNoteToIndex` correctly achieves this by checking if the calculated column (`noteNumber % 16`) is greater than 7 or if the row is outside the 0-7 range. This ensures only presses on the 8x8 grid are processed.
+
+#### 5. Recommended Implementation Architecture
+
+The working code uses a clean, decoupled architecture that should be maintained:
+
+1.  **`MidiMapping.ts`:** A dedicated, stateless module containing the pure `mapIndexToNote` and `mapNoteToIndex` functions. This is the central "translator".
+2.  **`MidiHandler.ts`:** The input service. It listens for `noteon` events from the device, uses `mapNoteToIndex` to find the correct sound index, and triggers the `AudioEngine`.
+3.  **`MidiFeedback.ts`:** The output service. It provides methods like `setPadColour` to send lighting commands to the device.
+4.  **`MidiFeedbackController.tsx`:** A non-visual React component that acts as the reactive bridge. It subscribes to the `useSoundStore` and, whenever the state of sounds (e.g., `isPlaying`) changes, it uses `MidiFeedback.ts` and `mapIndexToNote` to update the device's LEDs accordingly. This effectively synchronizes the hardware with the application state.
+
 ---
 ./README.md
 ---
@@ -458,16 +580,6 @@ export default tseslint.config([
   }
 }
 
-
----
-./postcss.config.js
----
-export default {
-  plugins: {
-    '@tailwindcss/postcss': {},
-    autoprefixer: {},
-  },
-}
 
 ---
 
@@ -661,22 +773,6 @@ export default App;
 With these changes, your application will now automatically reflect the state of your soundboard on the Launchpad's LEDs exactly as you specified.
 
 ---
-./tailwind.config.js
----
-/** @type {import('tailwindcss').Config} */
-export default {
-  content: [
-    "./index.html",
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
-  theme: {
-    extend: {},
-  },
-  plugins: [],
-}
-
-
----
 ./tsconfig.app.json
 ---
 {
@@ -755,11 +851,9 @@ export default {
 ---
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
-import tailwindcss from '@tailwindcss/vite'
-
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [react()],
 })
 
 
@@ -821,23 +915,12 @@ export default defineConfig({
 import { useEffect } from 'react';
 import { FileDropArea } from './components/FileDropArea';
 import { PadGrid } from './components/PadGrid';
-import { useSoundStore } from './useSoundStore';
-import { AudioEngine } from './AudioEngine';
 import { MidiHandler } from './MidiHandler';
 import * as Tone from 'tone';
 import { MidiFeedback } from './MidiFeedback';
 import { MidiFeedbackController } from './components/MidiFeedbackController';
 
-const KEY_MAP: { [key: string]: number } = {
-  '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
-  'q': 10, 'w': 11, 'e': 12, 'r': 13, 't': 14, 'y': 15, 'u': 16, 'i': 17, 'o': 18, 'p': 19,
-  'a': 20, 's': 21, 'd': 22, 'f': 23, 'g': 24, 'h': 25, 'j': 26, 'k': 27, 'l': 28,
-  'z': 29, 'x': 30, 'c': 31, 'v': 32, 'b': 33, 'n': 34, 'm': 35,
-};
-
 function App() {
-  const sounds = useSoundStore((state) => state.sounds);
-
   useEffect(() => {
     const startAudioContext = async () => {
       if (Tone.context.state !== 'running') {
@@ -858,31 +941,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const keyIndex = KEY_MAP[event.key.toLowerCase()];
-      if (keyIndex !== undefined && sounds[keyIndex]) {
-        AudioEngine.play(sounds[keyIndex].id);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [sounds]);
-
-  useEffect(() => {
     MidiHandler.enableMidi();
     MidiFeedback.init();
   }, []);
 
   return (
-    <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="bg-gradient-to-br from-blue-100 to-purple-200 text-gray-800 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
       <MidiFeedbackController />
 
       <div className="w-full max-w-4xl flex flex-col gap-4">
-        <h1 className="text-3xl font-bold">Soundboard</h1>
+        <h1 className="text-5xl font-extrabold text-center text-purple-700 mb-8 drop-shadow-lg">Fun Soundboard!</h1>
         <FileDropArea />
         <PadGrid />
       </div>
@@ -1178,15 +1246,15 @@ export function FileDropArea() {
   return (
     <div
       {...getRootProps()}
-      className={`bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
-        isDragActive ? 'border-green-500 bg-green-900/20 ring-4 ring-green-500' : ''
+      className={`bg-yellow-300 border-4 border-dashed border-yellow-500 rounded-3xl p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
+        isDragActive ? 'border-green-500 bg-green-200 ring-4 ring-green-500' : ''
       }`}
     >
       <input {...getInputProps()} />
-      <p className="text-gray-400">
+      <p className="text-yellow-800 text-2xl font-bold">
         {isDragActive
-          ? 'Drop the files here ...'
-          : "Drag 'n' drop some audio files here, or click to select files"}
+          ? 'Drop your awesome sounds here!'
+          : "Drag your awesome sounds here, or click to pick some!"}
       </p>
     </div>
   );
@@ -1231,28 +1299,81 @@ export function MidiFeedbackController() {
 ---
 import { useSoundStore } from '../useSoundStore';
 import { AudioEngine } from '../AudioEngine';
+import { useEffect } from 'react';
+
+const keyboardMap = [
+  '1', '2', '3', '4', '5', '6', '7', '8', '9', '0',
+  'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p',
+  'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';',
+  'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', '/',
+];
+
+const padColors = [
+  'bg-gradient-to-br from-red-400 to-red-600', // Red
+  'bg-gradient-to-br from-blue-400 to-blue-600', // Blue
+  'bg-gradient-to-br from-green-400 to-green-600', // Green
+  'bg-gradient-to-br from-yellow-400 to-yellow-600', // Yellow
+  'bg-gradient-to-br from-purple-400 to-purple-600', // Purple
+  'bg-gradient-to-br from-pink-400 to-pink-600', // Pink
+  'bg-gradient-to-br from-indigo-400 to-indigo-600', // Indigo
+  'bg-gradient-to-br from-teal-400 to-teal-600', // Teal
+  'bg-gradient-to-br from-orange-400 to-orange-600', // Orange
+  'bg-gradient-to-br from-cyan-400 to-cyan-600', // Cyan
+  'bg-gradient-to-br from-lime-400 to-lime-600', // Lime
+  'bg-gradient-to-br from-fuchsia-400 to-fuchsia-600', // Fuchsia
+  'bg-gradient-to-br from-emerald-400 to-emerald-600', // Emerald
+  'bg-gradient-to-br from-rose-400 to-rose-600', // Rose
+];
 
 export function PadGrid() {
   const sounds = useSoundStore((state) => state.sounds);
+  const playSound = (id: string) => AudioEngine.play(id);
 
-  const handleClick = (id: string) => {
-    AudioEngine.play(id);
-  };
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const index = keyboardMap.indexOf(event.key.toLowerCase());
+      if (index !== -1 && sounds[index]) {
+        playSound(sounds[index].id);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [sounds]);
 
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 grid grid-cols-4 gap-4">
+    <div className="bg-gradient-to-br from-blue-200 to-purple-300 p-8 rounded-3xl shadow-2xl">
       {sounds.length === 0 ? (
-        <p className="text-gray-400 col-span-4 text-center">No pads yet. Drop some audio files!</p>
+        <p className="text-gray-700 text-center text-2xl font-semibold">
+          No pads yet! Drag and drop some fun sounds here!
+        </p>
       ) : (
-        sounds.map((sound) => (
-          <button
-            key={sound.id}
-            onClick={() => handleClick(sound.id)}
-            className={`bg-gray-700 hover:bg-gray-600 text-white font-bold py-4 px-4 rounded-lg shadow-md transition-all duration-100 ease-in-out ${sound.isPlaying ? 'ring-4 ring-blue-500 scale-105' : ''}`}
-          >
-            {sound.name}
-          </button>
-        ))
+        <div className="grid grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-6">
+          {sounds.map((sound, index) => (
+            <button
+              key={sound.id}
+              onClick={() => playSound(sound.id)}
+              className={`
+                ${padColors[index % padColors.length]}
+                text-white font-extrabold
+                py-10 px-4 rounded-2xl shadow-xl
+                transform transition-all duration-150 ease-in-out
+                hover:scale-105 hover:shadow-2xl
+                focus:outline-none focus:ring-4 focus:ring-white focus:ring-opacity-75
+                ${sound.isPlaying ? 'ring-4 ring-white scale-105' : ''}
+                flex flex-col items-center justify-center
+                relative overflow-hidden
+              `}
+              style={{ minWidth: '130px', minHeight: '130px' }}
+            >
+              <span className="text-6xl mb-2 opacity-90 drop-shadow-md">{keyboardMap[index]?.toUpperCase() || ''}</span>
+              <span className="text-xl text-center leading-tight font-bold drop-shadow-sm">{sound.name}</span>
+              <div className="absolute inset-0 bg-black opacity-10 mix-blend-overlay"></div>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );

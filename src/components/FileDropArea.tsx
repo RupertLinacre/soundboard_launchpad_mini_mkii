@@ -29,15 +29,15 @@ export function FileDropArea() {
   return (
     <div
       {...getRootProps()}
-      className={`bg-gray-800 border-2 border-dashed border-gray-600 rounded-lg p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
-        isDragActive ? 'border-green-500 bg-green-900/20 ring-4 ring-green-500' : ''
+      className={`bg-yellow-300 border-4 border-dashed border-yellow-500 rounded-3xl p-16 text-center cursor-pointer transition-all duration-200 ease-in-out ${
+        isDragActive ? 'border-green-500 bg-green-200 ring-4 ring-green-500' : ''
       }`}
     >
       <input {...getInputProps()} />
-      <p className="text-gray-400">
+      <p className="text-yellow-800 text-2xl font-bold">
         {isDragActive
-          ? 'Drop the files here ...'
-          : "Drag 'n' drop some audio files here, or click to select files"}
+          ? 'Drop your awesome sounds here!'
+          : "Drag your awesome sounds here, or click to pick some!"}
       </p>
     </div>
   );

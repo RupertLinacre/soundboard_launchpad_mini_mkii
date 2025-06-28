@@ -1,23 +1,12 @@
 import { useEffect } from 'react';
 import { FileDropArea } from './components/FileDropArea';
 import { PadGrid } from './components/PadGrid';
-import { useSoundStore } from './useSoundStore';
-import { AudioEngine } from './AudioEngine';
 import { MidiHandler } from './MidiHandler';
 import * as Tone from 'tone';
 import { MidiFeedback } from './MidiFeedback';
 import { MidiFeedbackController } from './components/MidiFeedbackController';
 
-const KEY_MAP: { [key: string]: number } = {
-  '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
-  'q': 10, 'w': 11, 'e': 12, 'r': 13, 't': 14, 'y': 15, 'u': 16, 'i': 17, 'o': 18, 'p': 19,
-  'a': 20, 's': 21, 'd': 22, 'f': 23, 'g': 24, 'h': 25, 'j': 26, 'k': 27, 'l': 28,
-  'z': 29, 'x': 30, 'c': 31, 'v': 32, 'b': 33, 'n': 34, 'm': 35,
-};
-
 function App() {
-  const sounds = useSoundStore((state) => state.sounds);
-
   useEffect(() => {
     const startAudioContext = async () => {
       if (Tone.context.state !== 'running') {
@@ -38,31 +27,16 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      const keyIndex = KEY_MAP[event.key.toLowerCase()];
-      if (keyIndex !== undefined && sounds[keyIndex]) {
-        AudioEngine.play(sounds[keyIndex].id);
-      }
-    };
-
-    window.addEventListener('keydown', handleKeyDown);
-
-    return () => {
-      window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, [sounds]);
-
-  useEffect(() => {
     MidiHandler.enableMidi();
     MidiFeedback.init();
   }, []);
 
   return (
-    <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+    <div className="bg-gradient-to-br from-blue-100 to-purple-200 text-gray-800 min-h-screen flex flex-col items-center justify-center p-4 font-sans">
       <MidiFeedbackController />
 
       <div className="w-full max-w-4xl flex flex-col gap-4">
-        <h1 className="text-3xl font-bold">Soundboard</h1>
+        <h1 className="text-5xl font-extrabold text-center text-purple-700 mb-8 drop-shadow-lg">Fun Soundboard!</h1>
         <FileDropArea />
         <PadGrid />
       </div>
