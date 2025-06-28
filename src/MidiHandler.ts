@@ -1,6 +1,7 @@
 import { WebMidi } from 'webmidi';
 import { useSoundStore } from './useSoundStore';
 import { AudioEngine } from './AudioEngine';
+import { mapNoteToIndex } from './MidiMapping';
 
 export const MidiHandler = {
   async enableMidi() {
@@ -9,13 +10,15 @@ export const MidiHandler = {
       console.log('Web MIDI API enabled!');
 
       WebMidi.inputs.forEach((input) => {
-        console.log(`Input: ${input.name}`);
+        input.removeListener('noteon'); // Prevent duplicate listeners
         input.addListener('noteon', (e) => {
           const noteNumber = e.note.number;
-          console.log(`Received noteon: ${noteNumber}`);
-          const sounds = useSoundStore.getState().sounds;
-          if (sounds[noteNumber]) {
-            AudioEngine.play(sounds[noteNumber].id);
+          const index = mapNoteToIndex(noteNumber);
+          if (index !== null) {
+            const sounds = useSoundStore.getState().sounds;
+            if (sounds[index]) {
+              AudioEngine.play(sounds[index].id);
+            }
           }
         });
       });

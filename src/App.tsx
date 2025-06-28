@@ -5,7 +5,7 @@ import { useSoundStore } from './useSoundStore';
 import { AudioEngine } from './AudioEngine';
 import { MidiHandler } from './MidiHandler';
 import * as Tone from 'tone';
-import { MidiFeedback, LED_COLORS } from './MidiFeedback';
+import { MidiFeedback } from './MidiFeedback';
 import { MidiFeedbackController } from './components/MidiFeedbackController';
 
 const KEY_MAP: { [key: string]: number } = {
@@ -62,12 +62,7 @@ function App() {
       <MidiFeedbackController />
 
       <div className="w-full max-w-4xl flex flex-col gap-4">
-        <button
-          onClick={() => MidiFeedback.setPadColour(11, LED_COLORS.RED)}
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-        >
-          Test Pad 11 (Top-Left)
-        </button>
+        <h1 className="text-3xl font-bold">Soundboard</h1>
         <FileDropArea />
         <PadGrid />
       </div>

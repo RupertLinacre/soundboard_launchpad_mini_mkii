@@ -475,101 +475,190 @@ export default {
 ---
 ./step_by_step.md
 ---
-# Soundboard App Implementation Plan
 
-This plan breaks down the development of the soundboard web app into small, verifiable steps. After each step, the application should be runnable in a browser to confirm the functionality has been correctly implemented.
+### (2) Step-by-Step Plan: Implement Active/Playing Pad LEDs
 
-## ~~Step 1: Project Setup & Basic Layout~~
+This plan will make pads with loaded sounds light up **red**, turn **green** while playing, and revert to **red** when finished.
 
-*   **Goal:** ~~Initialize the project with Vite, add Tailwind CSS, and create a basic placeholder layout.~~
-*   **Actions:**
-    1.  ~~Use Vite to scaffold a new React + TypeScript project.~~
-    2.  ~~Install and configure Tailwind CSS for styling.~~
-    3.  ~~In `App.tsx`, create two main sections: one for the file drop zone and one for the sound pad grid. Use simple `div`s with borders and labels for now.~~
-*   **Verification:**
-    *   ~~Run `npm run dev`.~~
-    *   ~~Open the browser to the provided localhost URL.~~
-    *   ~~The page should display two distinct placeholder boxes for the "Drop Zone" and "Pad Grid", with basic Tailwind styles applied.~~
+#### Step 1: Update `MidiFeedback.ts` with Color Constants
 
-## ~~Step 2: File Drop & State Mgt Setup~~
+Modify your existing `MidiFeedback.ts` to be more readable and to include a helper function that maps a sound's array index to the correct MIDI note number.
 
-*   **Goal:** ~~Implement the file drop functionality and set up a state management store to hold the dropped files.~~
-*   **Actions:**
-    1.  ~~Install `zustand` and `react-dropzone`.~~
-    2.  ~~Create a Zustand store (`useSoundStore.ts`) that holds an array of `File` objects.~~
-    3.  ~~Implement the `FileDropArea` component using `react-dropzone`.~~
-    4.  ~~On dropping files, validate they are `audio/wav` or `audio/mpeg`, and then add the valid files to the Zustand store.~~
-*   **Verification:**
-    *   ~~Open the app in the browser.~~
-    *   ~~Use React DevTools to inspect the Zustand store's state.~~
-    *   ~~Drag and drop a few MP3 or WAV files onto the drop zone.~~
-    *   ~~Confirm that the store's state updates to show an array of the `File` objects you dropped.~~
+```typescript
+// src/MidiFeedback.ts
 
-## ~~Step 3: Displaying the Sound Pads~~
+import { WebMidi, Output } from 'webmidi';
 
-*   **Goal:** ~~Render a grid of pads based on the files in the store.~~
-*   **Actions:**
-    1.  ~~Create a `PadGrid` component.~~
-    2.  ~~This component will read the array of sounds from the Zustand store.~~
-    3.  ~~It will map over the array and render a simple `<button>` for each file, displaying the file's name as the button text.~~
-    4.  ~~Use CSS Grid with Tailwind to arrange the buttons in a responsive grid.~~
-*   **Verification:**
-    *   ~~Open the app.~~
-    *   ~~Drop several audio files onto the drop zone.~~
-    *   ~~The "Pad Grid" area should now display one button for each file, with the correct file name, arranged in a grid.~~
+// 1. Define color constants for readability
+export const LED_COLORS = {
+  OFF: 0x0C,
+  RED: 0x0F,
+  GREEN: 0x3C,
+  AMBER: 0x3F, // Good for the "Light All" test button
+};
 
-## ~~Step 4: Audio Playback on Click~~
+class MidiFeedbackService {
+    private output: Output | undefined;
+    private isInitialized = false;
 
-*   **Goal:** ~~Decode dropped audio files and play them when a pad is clicked.~~
-*   **Actions:**
-    1.  ~~Install `tone`.~~
-    2.  ~~Create an `AudioEngine.ts` service that uses `Tone.js`.~~
-    3.  ~~Modify the Zustand store. Instead of just `File`, it should store an object like `{ id, name, player: Tone.Player }`.~~
-    4.  ~~When files are dropped, use the `AudioEngine` to decode each file into a `Tone.Player` instance and add the resulting objects to the store.~~
-    5.  ~~In the `PadGrid` component, add an `onClick` handler to each button that calls the `start()` method of its corresponding `Tone.Player`.~~
-*   **Verification:**
-    *   ~~Open the app and drop a WAV or MP3 file.~~
-    *   ~~A pad appears in the grid.~~
-    *   ~~Clicking the pad should immediately play the audio file.~~
+    async init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
+        // This part is already correct in your code.
+        try {
+            await WebMidi.enable({ sysex: true });
+            this.output = WebMidi.outputs.find(o => /Launchpad/i.test(o.name));
+            if (this.output) {
+                console.log(`Successfully found MIDI Output: ${this.output.name}`);
+            } else {
+                console.error('Could not find any Launchpad MIDI Output.');
+            }
+        } catch (err) {
+            console.error('Failed to enable Web MIDI:', err);
+        }
+    }
 
-## ~~Step 5: Keyboard Controls~~
+    // 2. Add a helper to map a flat sound index (0, 1, 2...) to a grid note
+    mapSoundIndexToNote(index: number): number | null {
+        if (index < 0 || index > 63) return null; // Only handle the 8x8 grid
+        const row = Math.floor(index / 8);
+        const col = index % 8;
+        // Use the Launchpad's session layout note mapping
+        return (row * 10) + col + 11;
+    }
 
-*   **Goal:** ~~Trigger sound pads using keyboard keys.~~
-*   **Actions:**
-    1.  ~~Define a mapping of keyboard keys to pad indices (e.g., `1` -> 0, `2` -> 1, ..., `q` -> 9, `w` -> 10).~~
-    2.  ~~Add a global `keydown` event listener in the main `App.tsx` component.~~
-    3.  ~~When a mapped key is pressed, find the corresponding sound in the Zustand store by its index and trigger its `Tone.Player` to play.~~
-*   **Verification:**
-    *   ~~Open the app and drop at least two audio files.~~
-    *   ~~Pressing the '1' key should play the first sound.~~
-    *   ~~Pressing the '2' key should play the second sound.~~
+    setPadColour(note: number, velocity: number) {
+        if (!this.output) return;
+        this.output.send([0x90, note, velocity]);
+    }
 
-## ~~Step 6: MIDI Input & Playback~~
+    // Your lightUpAllPads and clearAllPads methods can remain for testing
+    // Update them to use the new constants for clarity
+    lightUpAllPads(velocity: number = LED_COLORS.AMBER) {
+        if (!this.output) return;
+        for (let i = 0; i < 64; i++) {
+            const note = this.mapSoundIndexToNote(i);
+            if (note) this.setPadColour(note, velocity);
+        }
+        console.log('Sent lamp test.');
+    }
 
-*   **Goal:** ~~Connect a MIDI controller to trigger the sound pads.~~
-*   **Actions:**
-    1.  ~~Install `webmidi`.~~
-    2.  ~~Create a `MidiHandler.ts` service.~~
-    3.  ~~On app load, the `MidiHandler` should request MIDI access and listen for `noteon` events on all available inputs.~~
-    4.  ~~When a `noteon` event is received, map the MIDI note number to a pad index (e.g., MIDI note 36 -> pad 0, 37 -> pad 1).~~
-    5.  ~~Trigger the corresponding `Tone.Player` from the Zustand store.~~
-*   **Verification:**
-    *   ~~Connect a MIDI controller to your computer.~~
-    *   ~~Open the app. The browser should prompt for MIDI access. Grant it.~~
-    *   ~~Drop a few audio files.~~
-    *   ~~Pressing pads on your MIDI controller should trigger the corresponding sounds in the web app.~~
+    clearAllPads() {
+        this.lightUpAllPads(LED_COLORS.OFF);
+        console.log('Cleared all pads.');
+    }
+}
 
-## ~~Step 7: Final Polish & Styling~~
+export const MidiFeedback = new MidiFeedbackService();
+```
 
-*   **Goal:** ~~Improve the visual design and user feedback.~~
-*   **Actions:**
-    1.  ~~Use Tailwind CSS to create a clean, modern design for the pads, the drop zone, and the overall layout.~~
-    2.  ~~Add visual feedback for interactions:
-        *   ~~Highlight the drop zone when a file is being dragged over it.~~
-        *   ~~Make pads light up or change appearance when they are triggered by click, keyboard, or MIDI.~~
-*   **Verification:**
-    *   ~~The app should be visually appealing and feel responsive. Interactions should provide clear feedback to the user.~~
+#### Step 2: Create a `MidiFeedbackController` Component
 
+This new, non-visual component will listen to your `Zustand` store and command the `MidiFeedback` service to update the LEDs whenever the sound state changes.
+
+1.  Create a new file: `src/components/MidiFeedbackController.tsx`
+2.  Add the following code:
+
+```typescript
+// src/components/MidiFeedbackController.tsx
+
+import { useEffect } from 'react';
+import { useSoundStore } from '../useSoundStore';
+import { MidiFeedback, LED_COLORS } from '../MidiFeedback';
+
+export function MidiFeedbackController() {
+  // Subscribe to the entire sounds array.
+  // The hook will re-run whenever this array changes.
+  const sounds = useSoundStore((state) => state.sounds);
+
+  useEffect(() => {
+    // 1. Start with a clean slate every time the sounds array is updated.
+    MidiFeedback.clearAllPads();
+
+    // 2. Loop through the current sounds and set the LED for each one.
+    sounds.forEach((sound, index) => {
+      const note = MidiFeedback.mapSoundIndexToNote(index);
+      if (note === null) return; // Ignore sounds beyond the 64-pad grid
+
+      // Determine the color based on the isPlaying state
+      const color = sound.isPlaying ? LED_COLORS.GREEN : LED_COLORS.RED;
+
+      MidiFeedback.setPadColour(note, color);
+    });
+
+    // 3. Return a cleanup function to turn off all LEDs when the app closes.
+    return () => {
+      MidiFeedback.clearAllPads();
+    };
+  }, [sounds]); // Dependency array: this effect runs when `sounds` changes.
+
+  return null; // This component renders no visible UI.
+}
+```
+
+#### Step 3: Integrate the Controller into `App.tsx`
+
+Finally, add the new `<MidiFeedbackController />` to your main app component so it's always running and listening for state changes.
+
+1.  Open `src/App.tsx`.
+2.  Import the new component and render it. You can now safely remove the test buttons if you wish.
+
+```typescript
+// src/App.tsx
+
+import { useEffect } from 'react';
+import { FileDropArea } from './components/FileDropArea';
+import { PadGrid } from './components/PadGrid';
+import { useSoundStore } from './useSoundStore';
+import { AudioEngine } from './AudioEngine';
+import { MidiHandler } from './MidiHandler';
+import { MidiFeedback } from './MidiFeedback';
+import { WebMidi } from 'webmidi';
+// 1. Import the new controller
+import { MidiFeedbackController } from './components/MidiFeedbackController';
+
+// ... (KEY_MAP and other code remains the same)
+
+function App() {
+  // ... (all your existing useEffect hooks remain the same)
+
+  return (
+    <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+      {/* 2. Add the controller component here. It's invisible. */}
+      <MidiFeedbackController />
+
+      <div className="w-full max-w-4xl flex flex-col gap-4">
+        {/* You can optionally remove the test button block now */}
+        <div className="bg-gray-800 border border-yellow-500 p-4 rounded-lg flex flex-col items-center gap-2">
+          <h2 className="text-lg font-bold">MIDI Output Lamp Test</h2>
+          <div className="flex gap-4">
+            <button
+              onClick={() => MidiFeedback.lightUpAllPads()}
+              className="bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Light Up All Pads
+            </button>
+            <button
+              onClick={() => MidiFeedback.clearAllPads()}
+              className="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded"
+            >
+              Clear All Pads
+            </button>
+          </div>
+        </div>
+
+        <FileDropArea />
+        <PadGrid />
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+```
+
+With these changes, your application will now automatically reflect the state of your soundboard on the Launchpad's LEDs exactly as you specified.
 
 ---
 ./tailwind.config.js
@@ -736,6 +825,8 @@ import { useSoundStore } from './useSoundStore';
 import { AudioEngine } from './AudioEngine';
 import { MidiHandler } from './MidiHandler';
 import * as Tone from 'tone';
+import { MidiFeedback } from './MidiFeedback';
+import { MidiFeedbackController } from './components/MidiFeedbackController';
 
 const KEY_MAP: { [key: string]: number } = {
   '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5, '7': 6, '8': 7, '9': 8, '0': 9,
@@ -783,11 +874,15 @@ function App() {
 
   useEffect(() => {
     MidiHandler.enableMidi();
+    MidiFeedback.init();
   }, []);
 
   return (
     <div className="bg-gray-900 text-white min-h-screen flex flex-col items-center justify-center p-4">
+      <MidiFeedbackController />
+
       <div className="w-full max-w-4xl flex flex-col gap-4">
+        <h1 className="text-3xl font-bold">Soundboard</h1>
         <FileDropArea />
         <PadGrid />
       </div>
@@ -817,12 +912,22 @@ export const AudioEngine = {
   async play(id: string) {
     const player = this.players.get(id);
     if (player) {
+      // Set the UI state to "playing"
       useSoundStore.getState().setPlaying(id, true);
-      player.start();
-      player.onended = () => {
-        console.log(`Sound ${id} ended. Setting isPlaying to false.`);
+
+      // If the sound is already playing, stop it first for a clean re-trigger.
+      if (player.state === 'started') {
+        player.stop();
+      }
+
+      // **Crucially, assign the onended callback BEFORE starting.**
+      // This will be called only when the sound finishes playing naturally.
+      player.onstop = () => {
         useSoundStore.getState().setPlaying(id, false);
       };
+
+      // Start playback.
+      player.start();
     }
   },
 
@@ -832,11 +937,75 @@ export const AudioEngine = {
 };
 
 ---
+./src/MidiFeedback.ts
+---
+import { WebMidi, Output } from 'webmidi';
+import { mapIndexToNote } from './MidiMapping';
+
+// 1. Define color constants for readability
+export const LED_COLORS = {
+    OFF: 0x0C,
+    RED: 0x0F,
+    GREEN: 0x3C,
+    AMBER: 0x3F, // Good for the "Light All" test button
+};
+
+class MidiFeedbackService {
+    private output: Output | undefined;
+    private isInitialized = false;
+
+    async init() {
+        if (this.isInitialized) return;
+        this.isInitialized = true;
+        // This part is already correct in your code.
+        try {
+            await WebMidi.enable({ sysex: true });
+            console.log('WebMidi enabled.');
+            this.output = WebMidi.outputs.find(o => /Launchpad/i.test(o.name));
+            if (this.output) {
+                console.log(`Successfully found MIDI Output: ${this.output.name}`);
+            } else {
+                console.error('Could not find any Launchpad MIDI Output. Available outputs:', WebMidi.outputs.map(o => o.name));
+            }
+        } catch (err) {
+            console.error('Failed to enable Web MIDI:', err);
+        }
+    }
+
+
+
+    setPadColour(note: number, velocity: number) {
+        if (!this.output) return;
+        this.output.send([0x90, note, velocity]);
+    }
+
+    // Your lightUpAllPads and clearAllPads methods can remain for testing
+    // Update them to use the new constants for clarity
+
+    lightUpAllPads(velocity: number = LED_COLORS.AMBER) {
+        if (!this.output) return;
+        for (let i = 0; i < 64; i++) {
+            const note = mapIndexToNote(i);
+            if (note !== null) this.setPadColour(note, velocity);
+        }
+        console.log('Sent lamp test.');
+    }
+
+    clearAllPads() {
+        this.lightUpAllPads(LED_COLORS.OFF);
+        console.log('Cleared all pads.');
+    }
+}
+
+export const MidiFeedback = new MidiFeedbackService();
+
+---
 ./src/MidiHandler.ts
 ---
 import { WebMidi } from 'webmidi';
 import { useSoundStore } from './useSoundStore';
 import { AudioEngine } from './AudioEngine';
+import { mapNoteToIndex } from './MidiMapping';
 
 export const MidiHandler = {
   async enableMidi() {
@@ -845,13 +1014,15 @@ export const MidiHandler = {
       console.log('Web MIDI API enabled!');
 
       WebMidi.inputs.forEach((input) => {
-        console.log(`Input: ${input.name}`);
+        input.removeListener('noteon'); // Prevent duplicate listeners
         input.addListener('noteon', (e) => {
           const noteNumber = e.note.number;
-          console.log(`Received noteon: ${noteNumber}`);
-          const sounds = useSoundStore.getState().sounds;
-          if (sounds[noteNumber]) {
-            AudioEngine.play(sounds[noteNumber].id);
+          const index = mapNoteToIndex(noteNumber);
+          if (index !== null) {
+            const sounds = useSoundStore.getState().sounds;
+            if (sounds[index]) {
+              AudioEngine.play(sounds[index].id);
+            }
           }
         });
       });
@@ -860,6 +1031,53 @@ export const MidiHandler = {
     }
   },
 };
+
+
+---
+./src/MidiMapping.ts
+---
+// src/MidiMapping.ts
+
+/**
+ * Maps a sound's index (0-63) to the correct MIDI note for the Launchpad grid.
+ * Formula derived from direct device output.
+ * @param index The flat index of the sound in the array (0 to 63).
+ * @returns The corresponding MIDI note number (e.g., 0 for index 0).
+ */
+export function mapIndexToNote(index: number): number | null {
+    if (index < 0 || index > 63) {
+        return null; // Out of the 8x8 grid bounds
+    }
+    const row = Math.floor(index / 8);
+    const col = index % 8;
+    return (row * 16) + col;
+}
+
+/**
+ * Maps an incoming MIDI note from a pad press back to its grid index (0-63).
+ * Formula derived from direct device output.
+ * @param noteNumber The MIDI note number received from the device.
+ * @returns The corresponding flat index (0-63) or null if it's not a grid pad.
+ */
+export function mapNoteToIndex(noteNumber: number): number | null {
+    const col = noteNumber % 16;
+
+    // This check is vital. It filters out the side buttons.
+    // Grid pad columns are 0-7. Side button columns are 8-15.
+    if (col > 7) {
+        return null;
+    }
+
+    const row = Math.floor(noteNumber / 16);
+
+    // This check filters out the top and bottom rows of round buttons.
+    if (row > 7) {
+        return null;
+    }
+
+    const index = (row * 8) + col;
+    return index;
+}
 
 
 ---
@@ -948,7 +1166,7 @@ export function FileDropArea() {
         const player = await AudioEngine.decodeAudioFile(file);
         const id = file.name; // Using file name as ID for simplicity
         AudioEngine.addPlayer(id, player);
-        addSound({ id, name: file.name, player });
+        addSound({ id, name: file.name, player, isPlaying: false });
       } catch (error) {
         console.error('Error decoding audio file:', file.name, error);
       }
@@ -975,6 +1193,40 @@ export function FileDropArea() {
 }
 
 ---
+./src/components/MidiFeedbackController.tsx
+---
+import { useEffect } from 'react';
+import { useSoundStore } from '../useSoundStore';
+import { MidiFeedback, LED_COLORS } from '../MidiFeedback';
+import { mapIndexToNote } from '../MidiMapping';
+
+export function MidiFeedbackController() {
+  // Subscribe to the entire sounds array.
+  // The hook will re-run whenever this array changes.
+  const sounds = useSoundStore((state) => state.sounds);
+
+  useEffect(() => {
+    // 1. Start with a clean slate every time the sounds array is updated.
+    MidiFeedback.clearAllPads();
+
+    // 2. Loop through the current sounds and set the LED for each one.
+    sounds.forEach((sound, index) => {
+      const note = mapIndexToNote(index);
+      if (note === null) return;
+      const color = sound.isPlaying ? LED_COLORS.GREEN : LED_COLORS.RED;
+      MidiFeedback.setPadColour(note, color);
+    });
+
+    // 3. Return a cleanup function to turn off all LEDs when the app closes.
+    return () => {
+      MidiFeedback.clearAllPads();
+    };
+  }, [sounds]); // Dependency array: this effect runs when `sounds` changes.
+
+  return null; // This component renders no visible UI.
+}
+
+---
 ./src/components/PadGrid.tsx
 ---
 import { useSoundStore } from '../useSoundStore';
@@ -992,7 +1244,7 @@ export function PadGrid() {
       {sounds.length === 0 ? (
         <p className="text-gray-400 col-span-4 text-center">No pads yet. Drop some audio files!</p>
       ) : (
-        sounds.map((sound, index) => (
+        sounds.map((sound) => (
           <button
             key={sound.id}
             onClick={() => handleClick(sound.id)}

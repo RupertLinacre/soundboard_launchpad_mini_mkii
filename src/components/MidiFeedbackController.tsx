@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useSoundStore } from '../useSoundStore';
 import { MidiFeedback, LED_COLORS } from '../MidiFeedback';
+import { mapIndexToNote } from '../MidiMapping';
 
 export function MidiFeedbackController() {
   // Subscribe to the entire sounds array.
@@ -13,12 +14,9 @@ export function MidiFeedbackController() {
 
     // 2. Loop through the current sounds and set the LED for each one.
     sounds.forEach((sound, index) => {
-      const note = MidiFeedback.mapSoundIndexToNote(index);
-      if (note === null) return; // Ignore sounds beyond the 64-pad grid
-
-      // Determine the color based on the isPlaying state
+      const note = mapIndexToNote(index);
+      if (note === null) return;
       const color = sound.isPlaying ? LED_COLORS.GREEN : LED_COLORS.RED;
-
       MidiFeedback.setPadColour(note, color);
     });
 

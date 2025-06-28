@@ -1,11 +1,12 @@
 import { WebMidi, Output } from 'webmidi';
+import { mapIndexToNote } from './MidiMapping';
 
 // 1. Define color constants for readability
 export const LED_COLORS = {
-  OFF: 0x0C,
-  RED: 0x0F,
-  GREEN: 0x3C,
-  AMBER: 0x3F, // Good for the "Light All" test button
+    OFF: 0x0C,
+    RED: 0x0F,
+    GREEN: 0x3C,
+    AMBER: 0x3F, // Good for the "Light All" test button
 };
 
 class MidiFeedbackService {
@@ -30,14 +31,7 @@ class MidiFeedbackService {
         }
     }
 
-    // 2. Add a helper to map a flat sound index (0, 1, 2...) to a grid note
-    mapSoundIndexToNote(index: number): number | null {
-        if (index < 0 || index > 63) return null; // Only handle the 8x8 grid
-        const row = Math.floor(index / 8);
-        const col = index % 8;
-        // Use the Launchpad's session layout note mapping
-        return (row * 10) + col + 11;
-    }
+
 
     setPadColour(note: number, velocity: number) {
         if (!this.output) return;
@@ -46,11 +40,12 @@ class MidiFeedbackService {
 
     // Your lightUpAllPads and clearAllPads methods can remain for testing
     // Update them to use the new constants for clarity
+
     lightUpAllPads(velocity: number = LED_COLORS.AMBER) {
         if (!this.output) return;
         for (let i = 0; i < 64; i++) {
-            const note = this.mapSoundIndexToNote(i);
-            if (note) this.setPadColour(note, velocity);
+            const note = mapIndexToNote(i);
+            if (note !== null) this.setPadColour(note, velocity);
         }
         console.log('Sent lamp test.');
     }
