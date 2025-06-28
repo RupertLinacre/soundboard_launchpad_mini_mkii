@@ -10,12 +10,21 @@ interface Sound {
 
 interface SoundStore {
   sounds: Sound[];
+  looperSample: { name: string; file: File } | null;
+  isLooperPlaying: boolean;
+  looperVolume: number;
   addSound: (sound: Sound) => void;
   setPlaying: (id: string, isPlaying: boolean) => void;
+  setLooperSample: (file: File) => void;
+  setIsLooperPlaying: (isPlaying: boolean) => void;
+  setLooperVolume: (volume: number) => void;
 }
 
 export const useSoundStore = create<SoundStore>((set) => ({
   sounds: [],
+  looperSample: null,
+  isLooperPlaying: false,
+  looperVolume: 75, // Default volume
   addSound: (sound) =>
     set((state) => {
       const newSounds = [...state.sounds, { ...sound, isPlaying: false }];
@@ -28,4 +37,7 @@ export const useSoundStore = create<SoundStore>((set) => ({
         sound.id === id ? { ...sound, isPlaying } : sound
       ),
     })),
+  setLooperSample: (file) => set({ looperSample: { name: file.name, file } }),
+  setIsLooperPlaying: (isPlaying) => set({ isLooperPlaying: isPlaying }),
+  setLooperVolume: (volume) => set({ looperVolume: volume }),
 }));

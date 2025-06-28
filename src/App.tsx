@@ -5,6 +5,7 @@ import { MidiHandler } from './MidiHandler';
 import * as Tone from 'tone';
 import { MidiFeedback } from './MidiFeedback';
 import { MidiFeedbackController } from './components/MidiFeedbackController';
+import { LooperPad } from './components/LooperPad';
 
 function App() {
   useEffect(() => {
@@ -39,6 +40,7 @@ function App() {
         <h1 className="text-5xl font-extrabold text-center text-purple-700 mb-8 drop-shadow-lg">Fun Soundboard!</h1>
         <FileDropArea />
         <PadGrid />
+        <LooperPad />
       </div>
     </div>
   );
